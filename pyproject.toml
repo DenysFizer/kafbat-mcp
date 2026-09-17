@@ -1,0 +1,55 @@
+[project]
+name = "kafbat-mcp"
+version = "0.1.0"
+description = "Read-only MCP server for kafbat UI (Kafka UI) that reuses your browser session"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Denys Fizer", email = "fizerdenys@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["mcp", "model-context-protocol", "kafka", "kafbat", "kafka-ui", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "mcp>=2.2,<3",
+    # yt_dlp.cookies is internal yt-dlp API; newer releases also track Chrome cookie format changes
+    "yt-dlp>=2026.8.19",
+    # optional yt-dlp dependency; without it GNOME keyring cookies silently fail to decrypt
+    "secretstorage>=3.3; sys_platform == 'linux'",
+    "httpx>=0.28",
+]
+
+[project.urls]
+Homepage = "https://github.com/DenysFizer/kafbat-mcp"
+Repository = "https://github.com/DenysFizer/kafbat-mcp"
+Issues = "https://github.com/DenysFizer/kafbat-mcp/issues"
+Changelog = "https://github.com/DenysFizer/kafbat-mcp/blob/main/CHANGELOG.md"
+
+[project.scripts]
+kafbat-mcp = "kafbat_mcp.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
