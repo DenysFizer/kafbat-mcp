@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import sys
 from contextlib import asynccontextmanager, suppress
 from typing import Any, Literal
-from urllib.parse import quote
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -16,56 +14,33 @@ from mcp.server.mcpserver.exceptions import ToolError
 from kafbat_mcp import __version__
 from kafbat_mcp.client import Kafbat
 from kafbat_mcp.config import Config
+from kafbat_mcp.formatting import parse_message_events, path_seg, pick, to_json
 
 MAX_MESSAGES = 500
 
-
-def seg(value: str) -> str:
-    return quote(value, safe="")
-
-
-def prune(obj: Any) -> Any:
-    """Drops nulls: kafbat returns lots of empty metrics, which only burn context tokens."""
-    if isinstance(obj, dict):
-        return {k: prune(v) for k, v in obj.items() if v is not None}
-    if isinstance(obj, list):
-        return [prune(v) for v in obj]
-    return obj
-
-
-def dump(obj: Any) -> str:
-    return json.dumps(prune(obj), ensure_ascii=False, separators=(",", ":"))
-
-
-def pick(d: dict, *keys: str) -> dict:
-    return {k: d[k] for k in keys if d.get(k) is not None}
-
-
-def truncate(value: str | None, limit: int) -> str | None:
-    if value is None or len(value) <= limit:
-        return value
-    return f"{value[:limit]}…[truncated {len(value) - limit} chars]"
-
-
-def parse_message_events(body: str, max_value_chars: int) -> dict:
-    """Parses kafbat's text/event-stream response of /messages/v2."""
-    messages, consuming, cursor = [], None, None
-    for line in body.splitlines():
-        if not line.startswith("data:"):
-            continue
-        event = json.loads(line[5:])
-        kind = event.get("type")
-        if kind == "MESSAGE" and event.get("message"):
-            m = event["message"]
-            messages.append(
-                pick(m, "partition", "offset", "timestamp", "keySerde", "valueSerde", "headers")
-                | {"key": truncate(m.get("key"), max_value_chars), "value": truncate(m.get("value"), max_value_chars)}
-            )
-        elif kind == "CONSUMING":
-            consuming = event.get("consuming")
-        elif kind == "DONE":
-            cursor = (event.get("cursor") or {}).get("id")
-    return {"messages": messages, "stats": consuming, "nextCursor": cursor}
+CLUSTER_FIELDS = (
+    "name",
+    "status",
+    "defaultCluster",
+    "readOnly",
+    "version",
+    "brokerCount",
+    "topicCount",
+    "onlinePartitionCount",
+    "features",
+)
+TOPIC_FIELDS = (
+    "name",
+    "internal",
+    "partitionCount",
+    "replicationFactor",
+    "inSyncReplicas",
+    "underReplicatedPartitions",
+    "cleanUpPolicy",
+    "segmentSize",
+)
+GROUP_FIELDS = ("groupId", "state", "members", "topics", "consumerLag", "simple")
+SCHEMA_FIELDS = ("subject", "version", "id", "schemaType", "compatibilityLevel")
 
 
 def build_server(kafbat: Kafbat) -> MCPServer:
@@ -89,93 +64,77 @@ def build_server(kafbat: Kafbat) -> MCPServer:
         lifespan=lifespan,
     )
 
+    async def paged(
+        path: str,
+        key: str,
+        fields: tuple[str, ...],
+        page: int,
+        per_page: int,
+        search: str | None = None,
+        **extra: Any,
+    ) -> str:
+        params: dict[str, Any] = {"page": page, "perPage": per_page, **extra}
+        if search:
+            params["search"] = search
+        data = await kafbat.get_json(path, params)
+        return to_json(
+            {
+                "page": page,
+                "pageCount": data.get("pageCount"),
+                key: [pick(item, *fields) for item in data.get(key, [])],
+            }
+        )
+
     # structured_output=False everywhere: plain JSON text, no outputSchema.
     @mcp.tool(structured_output=False)
     async def list_clusters() -> str:
         """List Kafka clusters configured in kafbat with status, versions and enabled features."""
         clusters = await kafbat.get_json("/api/clusters")
-        return dump(
-            [
-                pick(
-                    c,
-                    "name",
-                    "status",
-                    "defaultCluster",
-                    "readOnly",
-                    "version",
-                    "brokerCount",
-                    "topicCount",
-                    "onlinePartitionCount",
-                    "features",
-                )
-                for c in clusters
-            ]
-        )
+        return to_json([pick(c, *CLUSTER_FIELDS) for c in clusters])
 
     @mcp.tool(structured_output=False)
     async def list_topics(
         cluster: str, search: str | None = None, show_internal: bool = False, page: int = 1, per_page: int = 100
     ) -> str:
         """List topics of a cluster (paged). `search` is a substring match on topic name."""
-        params = {"page": page, "perPage": per_page, "showInternal": str(show_internal).lower()}
-        if search:
-            params["search"] = search
-        data = await kafbat.get_json(f"/api/clusters/{seg(cluster)}/topics", params)
-        return dump(
-            {
-                "page": page,
-                "pageCount": data.get("pageCount"),
-                "topics": [
-                    pick(
-                        t,
-                        "name",
-                        "internal",
-                        "partitionCount",
-                        "replicationFactor",
-                        "inSyncReplicas",
-                        "underReplicatedPartitions",
-                        "cleanUpPolicy",
-                        "segmentSize",
-                    )
-                    for t in data.get("topics", [])
-                ],
-            }
+        return await paged(
+            f"/api/clusters/{path_seg(cluster)}/topics",
+            "topics",
+            TOPIC_FIELDS,
+            page,
+            per_page,
+            search,
+            showInternal=str(show_internal).lower(),
         )
 
     @mcp.tool(structured_output=False)
     async def describe_topic(cluster: str, topic: str) -> str:
         """Topic details: partitions with leader and min/max offsets, plus configs that differ from defaults."""
-        base = f"/api/clusters/{seg(cluster)}/topics/{seg(topic)}"
+        base = f"/api/clusters/{path_seg(cluster)}/topics/{path_seg(topic)}"
         details, configs = await asyncio.gather(kafbat.get_json(base), kafbat.get_json(f"{base}/config"))
         details["nonDefaultConfig"] = {
             c["name"]: c.get("value")
             for c in configs
             if c.get("source") != "DEFAULT_CONFIG" and not c.get("isSensitive")
         }
-        return dump(details)
+        return to_json(details)
 
     @mcp.tool(structured_output=False)
     async def list_consumer_groups(cluster: str, search: str | None = None, page: int = 1, per_page: int = 100) -> str:
         """List consumer groups of a cluster (paged) with state, member count and total lag."""
-        params: dict[str, Any] = {"page": page, "perPage": per_page}
-        if search:
-            params["search"] = search
-        data = await kafbat.get_json(f"/api/clusters/{seg(cluster)}/consumer-groups/paged", params)
-        return dump(
-            {
-                "page": page,
-                "pageCount": data.get("pageCount"),
-                "consumerGroups": [
-                    pick(g, "groupId", "state", "members", "topics", "consumerLag", "simple")
-                    for g in data.get("consumerGroups", [])
-                ],
-            }
+        return await paged(
+            f"/api/clusters/{path_seg(cluster)}/consumer-groups/paged",
+            "consumerGroups",
+            GROUP_FIELDS,
+            page,
+            per_page,
+            search,
         )
 
     @mcp.tool(structured_output=False)
     async def describe_consumer_group(cluster: str, group_id: str) -> str:
         """Consumer group details: per-partition current offset, end offset, lag and assigned consumer."""
-        return dump(await kafbat.get_json(f"/api/clusters/{seg(cluster)}/consumer-groups/{seg(group_id)}"))
+        return to_json(await kafbat.get_json(f"/api/clusters/{path_seg(cluster)}/consumer-groups/{path_seg(group_id)}"))
 
     @mcp.tool(structured_output=False)
     async def consume_messages(
@@ -215,32 +174,22 @@ def build_server(kafbat: Kafbat) -> MCPServer:
         ):
             if value is not None:
                 params.append((name, value))
-        resp = await kafbat.get(f"/api/clusters/{seg(cluster)}/topics/{seg(topic)}/messages/v2", params)
-        return dump(parse_message_events(resp.text, max_value_chars))
+        path = f"/api/clusters/{path_seg(cluster)}/topics/{path_seg(topic)}/messages/v2"
+        resp = await kafbat.get(path, params)
+        return to_json(parse_message_events(resp.text, max_value_chars))
 
     @mcp.tool(structured_output=False)
     async def list_schemas(cluster: str, search: str | None = None, page: int = 1, per_page: int = 100) -> str:
         """List Schema Registry subjects (latest version metadata, without schema bodies)."""
-        params: dict[str, Any] = {"page": page, "perPage": per_page}
-        if search:
-            params["search"] = search
-        data = await kafbat.get_json(f"/api/clusters/{seg(cluster)}/schemas", params)
-        return dump(
-            {
-                "page": page,
-                "pageCount": data.get("pageCount"),
-                "schemas": [
-                    pick(s, "subject", "version", "id", "schemaType", "compatibilityLevel")
-                    for s in data.get("schemas", [])
-                ],
-            }
+        return await paged(
+            f"/api/clusters/{path_seg(cluster)}/schemas", "schemas", SCHEMA_FIELDS, page, per_page, search
         )
 
     @mcp.tool(structured_output=False)
     async def get_schema(cluster: str, subject: str, version: int | None = None) -> str:
         """Get a schema by subject: latest version by default, or a specific `version`."""
-        path = f"/api/clusters/{seg(cluster)}/schemas/{seg(subject)}"
-        return dump(await kafbat.get_json(f"{path}/versions/{version}" if version is not None else f"{path}/latest"))
+        path = f"/api/clusters/{path_seg(cluster)}/schemas/{path_seg(subject)}"
+        return to_json(await kafbat.get_json(f"{path}/versions/{version}" if version is not None else f"{path}/latest"))
 
     return mcp
 
@@ -254,5 +203,5 @@ def main() -> None:
     logging.basicConfig(
         stream=sys.stderr, level=cfg.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # otherwise every request is logged
+    logging.getLogger("httpx2").setLevel(logging.WARNING)  # httpx2 logs every request at INFO
     build_server(Kafbat(cfg)).run("stdio")

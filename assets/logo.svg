@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 356 164" width="356" height="164" role="img" aria-label="kafbat-mcp">
+  <title>kafbat-mcp</title>
+
+  <!-- three partitions, read up to different offsets -->
+  <g>
+    <rect x="24" y="34" width="150" height="20" rx="10" fill="#f59e0b"/>
+    <rect x="24" y="70" width="96" height="20" rx="10" fill="#fbbf24"/>
+    <rect x="24" y="106" width="190" height="20" rx="10" fill="#d97706"/>
+  </g>
+
+  <!-- unread remainder of each partition -->
+  <g opacity="0.26">
+    <rect x="182" y="34" width="32" height="20" rx="10" fill="#f59e0b"/>
+    <rect x="128" y="70" width="86" height="20" rx="10" fill="#fbbf24"/>
+  </g>
+
+  <!-- prompt glyph: a client reading the log -->
+  <path d="M252 62 L282 82 L252 102" fill="none" stroke="#0ea5e9" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="294" y="92" width="38" height="14" rx="7" fill="#0ea5e9"/>
+</svg>

@@ -1,8 +1,8 @@
-"""Offline tests: a fake kafbat behind httpx.MockTransport, the server driven by the in-process MCP client."""
+"""Offline tests: a fake kafbat behind httpx2.MockTransport, the server driven by the in-process MCP client."""
 
 import json
 
-import httpx
+import httpx2
 import pytest
 from mcp import Client
 
@@ -36,30 +36,30 @@ class Harness:
     """Fake kafbat plus a scripted browser: `cookies` are what successive cookie reads return."""
 
     def __init__(self, cookies: list[str | None], auto_open: bool = True):
-        self.requests: list[httpx.Request] = []
+        self.requests: list[httpx2.Request] = []
         self.opened: list[str] = []
         self._cookies = iter(cookies)
         self._last: str | None = None
         cfg = Config(url=URL, keepalive_seconds=0, auto_open=auto_open, login_wait_seconds=0.5)
-        self.kafbat = Kafbat(cfg, httpx.MockTransport(self._handle), self._read_cookie, self.opened.append)
+        self.kafbat = Kafbat(cfg, httpx2.MockTransport(self._handle), self._read_cookie, self.opened.append)
         self.server = build_server(self.kafbat)
 
     def _read_cookie(self) -> str | None:
         self._last = next(self._cookies, self._last)
         return self._last
 
-    def _handle(self, req: httpx.Request) -> httpx.Response:
+    def _handle(self, req: httpx2.Request) -> httpx2.Response:
         self.requests.append(req)
         if req.headers.get("Cookie") != f"SESSION={VALID}":
-            return httpx.Response(302, headers={"Location": "/oauth2/authorization/google"})
+            return httpx2.Response(302, headers={"Location": "/oauth2/authorization/google"})
         if req.url.path == "/api/clusters":
-            return httpx.Response(200, json=[{"name": "local", "status": "ONLINE", "version": None, "noise": 1}])
+            return httpx2.Response(200, json=[{"name": "local", "status": "ONLINE", "version": None, "noise": 1}])
         if req.url.path.endswith("/messages/v2"):
-            return httpx.Response(200, text=SSE, headers={"Content-Type": "text/event-stream"})
+            return httpx2.Response(200, text=SSE, headers={"Content-Type": "text/event-stream"})
         if req.url.path.startswith("/api/clusters/blocked/"):
             html = "<!DOCTYPE html><title>Attention Required! | Cloudflare</title>"
-            return httpx.Response(403, text=html, headers={"Content-Type": "text/html; charset=UTF-8"})
-        return httpx.Response(500, json={"message": "boom", "stackTrace": "at io.kafbat..."})
+            return httpx2.Response(403, text=html, headers={"Content-Type": "text/html; charset=UTF-8"})
+        return httpx2.Response(500, json={"message": "boom", "stackTrace": "at io.kafbat..."})
 
 
 async def call(h: Harness, tool: str, args: dict | None = None):

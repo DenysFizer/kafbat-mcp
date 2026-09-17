@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Use `httpx2` (already required by `mcp`) instead of the unmaintained `httpx` 0.28 line — one HTTP client instead
+  of two.
+- Formatting helpers moved to `kafbat_mcp.formatting`; the paged tools share one helper. No behaviour change.
+- README: logo, one-click install buttons for VS Code and Cursor, GitHub alerts, unified badges.
+
 ## [0.1.0]
 
 ### Added
