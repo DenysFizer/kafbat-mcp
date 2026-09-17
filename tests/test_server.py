@@ -199,6 +199,8 @@ def test_open_command_override_wins():
 def test_config_from_env():
     cfg = Config.from_env({"KAFBAT_URL": "https://x/", "KAFBAT_KEYRING": "gnomekeyring", "KAFBAT_AUTO_OPEN": "false"})
     assert (cfg.url, cfg.keyring, cfg.auto_open, cfg.browser) == ("https://x", "GNOMEKEYRING", False, "chrome")
+    # must stay under the 60s default tool timeout of MCP clients
+    assert cfg.login_wait_seconds <= 50
 
 
 @pytest.mark.parametrize(

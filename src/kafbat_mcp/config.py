@@ -19,7 +19,8 @@ class Config:
     cookie_name: str = "SESSION"
     keepalive_seconds: float = 600
     auto_open: bool = True
-    login_wait_seconds: float = 90
+    # stays under the 60s default tool timeout of MCP clients, so a slow login fails with our own message
+    login_wait_seconds: float = 45
     open_command: tuple[str, ...] | None = None
     log_level: str = "INFO"
 
@@ -50,7 +51,7 @@ class Config:
             cookie_name=env.get("KAFBAT_COOKIE_NAME", "SESSION"),
             keepalive_seconds=float(env.get("KAFBAT_KEEPALIVE_SECONDS", "600")),
             auto_open=env.get("KAFBAT_AUTO_OPEN", "true").lower() in ("1", "true", "yes"),
-            login_wait_seconds=float(env.get("KAFBAT_LOGIN_WAIT_SECONDS", "90")),
+            login_wait_seconds=float(env.get("KAFBAT_LOGIN_WAIT_SECONDS", "45")),
             open_command=open_command,
             log_level=log_level,
         )

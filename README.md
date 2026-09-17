@@ -154,7 +154,7 @@ orders.v1"*.
 | `KAFBAT_KEEPALIVE_SECONDS` | `600` | Keepalive interval; `0` disables it |
 | `KAFBAT_AUTO_OPEN` | `true` | Open kafbat in the browser when the session is gone |
 | `KAFBAT_OPEN_COMMAND` | auto | Command used to open the login page; the URL is appended |
-| `KAFBAT_LOGIN_WAIT_SECONDS` | `90` | How long to wait for a fresh cookie after opening the browser |
+| `KAFBAT_LOGIN_WAIT_SECONDS` | `45` | How long to wait for a fresh cookie after opening the browser |
 | `KAFBAT_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` (logs go to stderr) |
 
 ## Security
@@ -179,11 +179,16 @@ The session cookie stays in memory and is sent only to `KAFBAT_URL`; redirects a
 ## Troubleshooting
 
 <details>
-<summary><code>No valid kafbat session</code> / <code>No kafbat session after 90s</code></summary>
+<summary><code>No valid kafbat session</code> / <code>No kafbat session after 45s</code></summary>
 
 Log in to kafbat in the browser and profile you configured. Chromium browsers write cookies to disk about every
 30 seconds, so a fresh login can take up to half a minute to be picked up. If the login tab opened in the wrong
 browser or profile, see the next section.
+
+The first call after a long break is the one that pays for the re-login, and MCP clients cap a single tool call
+(Claude Code: `MCP_TOOL_TIMEOUT`, 60s by default). If a login needs longer than that, simply repeat the request —
+the session obtained in the background is reused. To wait it out inside one call instead, raise both
+`MCP_TOOL_TIMEOUT` and `KAFBAT_LOGIN_WAIT_SECONDS`.
 </details>
 
 <details>

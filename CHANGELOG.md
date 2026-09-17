@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows
   of two.
 - Formatting helpers moved to `kafbat_mcp.formatting`; the paged tools share one helper. No behaviour change.
 - README: logo, one-click install buttons for VS Code and Cursor, GitHub alerts, unified badges.
+- `KAFBAT_LOGIN_WAIT_SECONDS` now defaults to 45s so a slow re-login fails with our own message instead of hitting
+  the client's 60s tool timeout.
 
 ## [0.1.0]
 
