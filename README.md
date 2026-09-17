@@ -7,7 +7,8 @@
 
 **Read-only MCP server for kafbat UI — browse Kafka from your AI client,<br>using the session you already have in your browser.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/DenysFizer/kafbat-mcp/ci.yml?style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml)
+<!-- native Actions badge: shields.io can't read a private repo's workflow status -->
+[![CI](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python&logoColor=white)
 [![MCP](https://img.shields.io/badge/MCP-server-orange?style=flat-square)](https://modelcontextprotocol.io)
