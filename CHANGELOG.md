@@ -8,8 +8,13 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - Dependabot for Python dependencies (`uv.lock`) and GitHub Actions, weekly, minor and patch bumps grouped.
 - Issue templates for bugs and feature requests, `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
+- Dependency review on every pull request: one that adds a dependency with a known vulnerability of moderate
+  severity or worse fails before it reaches `main`.
+- A CI `build` job: the package must build, pass `twine check --strict`, install, and start.
 
 ### Changed
+- GitHub Actions are pinned to commit SHAs instead of tags, which can be moved to other code; Dependabot
+  keeps the pins current.
 - README, `SECURITY.md` and `CONTRIBUTING.md` reviewed against the code: they no longer describe only the
   browser-cookie login, claim that every request is a `GET`, or misstate how kafbat's own MCP server handles
   RBAC; the tools table gives the real Connect paths; Limitations and Troubleshooting cover what the

@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+# Actions are pinned to a commit SHA, not a tag: a tag can be moved to different code, a SHA cannot. The comment
+# carries the version so Dependabot can bump both together.
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -19,13 +22,30 @@ jobs:
       matrix:
         python-version: ["3.10", "3.13"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
       - run: uv run ruff check
       - run: uv run pytest
+
+  build:
+    # The package that `uv build` produces must install and start, and its README must render on PyPI,
+    # so a release never fails at the last step.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          python-version: "3.13"
+      - run: uv build
+      - run: uvx twine check --strict dist/*
+      - name: Wheel installs and starts
+        run: |
+          out="$(uv run --isolated --no-project --with dist/*.whl kafbat-mcp </dev/null 2>&1 || true)"
+          echo "$out"
+          echo "$out" | grep -q "KAFBAT_URL must be set"
 
   integration:
     # Real kafbat, Kafka, Schema Registry and Connect in Docker. One job per kafbat release, so they run in
@@ -38,8 +58,8 @@ jobs:
     # Upstream `main` can break with no change on our side: report it, don't block pull requests on it.
     continue-on-error: ${{ matrix.kafbat == 'main' }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           python-version: "3.13"
       - run: uv sync --locked
