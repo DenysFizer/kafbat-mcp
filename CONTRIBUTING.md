@@ -6,8 +6,10 @@ Thanks for helping. Bug reports and feature requests go through the
 
 ## Setup
 
+Fork the repository on GitHub, then:
+
 ```bash
-git clone https://github.com/DenysFizer/kafbat-mcp && cd kafbat-mcp
+git clone https://github.com/<you>/kafbat-mcp && cd kafbat-mcp
 uv sync
 ```
 
@@ -29,7 +31,8 @@ kafbat v1.3.0, v1.4.2, v1.5.0 and `main`.
 
 ## Pull requests
 
-`main` is protected: changes land through a pull request, and it merges once the required checks are green.
+`main` is protected: changes land through a pull request — from a branch in your fork, or in this repository if
+you have write access — and it merges once the required checks are green.
 Add a line under `## [Unreleased]` in `CHANGELOG.md` for anything a user would notice.
 
 ## Adding or changing a tool
