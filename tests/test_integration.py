@@ -152,7 +152,7 @@ def schema_registry(kafka, network):
     url = f"http://{sr.get_container_host_ip()}:{sr.get_exposed_port(8081)}"
     for fields in ('[{"name":"id","type":"int"}]',
                    '[{"name":"id","type":"int"},{"name":"note","type":["null","string"],"default":null}]'):
-        schema = '{"type":"record","name":"O","fields":%s}' % fields
+        schema = f'{{"type":"record","name":"O","fields":{fields}}}'
         r = httpx2.post(
             f"{url}/subjects/{SUBJECT}/versions",
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
