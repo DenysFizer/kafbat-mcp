@@ -1,7 +1,7 @@
 [project]
 name = "kafbat-mcp"
 version = "0.2.0"
-description = "MCP server for kafbat UI (Kafka UI) that reuses your browser session; read-only by default"
+description = "MCP server for kafbat UI (Kafka UI) that signs in with your existing kafbat login; read-only by default"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

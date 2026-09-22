@@ -5,7 +5,7 @@
 
 # kafbat-mcp
 
-**MCP server for kafbat UI — browse Kafka from your AI client,<br>using the session you already have in your browser. Read-only by default.**
+**MCP server for kafbat UI — work with Kafka from your AI client,<br>signed in with your existing kafbat login. Read-only by default.**
 
 [![CI](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -14,10 +14,12 @@
 
 </div>
 
-Browse topics, consumer group lag, messages and schemas through [kafbat UI](https://github.com/kafbat/kafka-ui) (the
-maintained fork of Kafka UI) from any [MCP](https://modelcontextprotocol.io) client — Claude Code, Claude Desktop,
-Cursor, VS Code and others. No broker credentials, no service account, nothing to change on the kafbat side: the
-server reuses the kafbat session from your own browser, so it sees exactly what you can see.
+Inspect topics, consumer-group lag, messages, schemas, brokers and connectors through
+[kafbat UI](https://github.com/kafbat/kafka-ui) (the maintained fork of Kafka UI) from any
+[MCP](https://modelcontextprotocol.io) client — Claude Code, Claude Desktop, Cursor, VS Code and others. No broker
+credentials, no service account, nothing to change on the kafbat side: the server signs in to kafbat as you — with
+the session already in your browser, or with your kafbat username and password — so it sees exactly what you can
+see.
 
 > [!NOTE]
 > Not affiliated with or endorsed by the kafbat project.
@@ -32,20 +34,22 @@ server reuses the kafbat session from your own browser, so it sees exactly what 
 ## Why kafbat-mcp
 
 kafbat ships its own MCP server, but it is **off by default** (`mcp.enabled`), so enabling it needs a config change
-and a redeploy from whoever runs kafbat. It also runs server-side with kafbat's own Kafka credentials, so it cannot
-reflect *your* RBAC permissions, and forwarding a browser session into it is not supported for SSO setups.
+and a redeploy from whoever runs kafbat. It sits behind kafbat's normal authentication, and an MCP client cannot
+complete an SSO login itself: on an OAuth2 deployment you would have to copy a session cookie into the client's
+config by hand, and do it again every time the session expires.
 
 It is also all-or-nothing (as of v1.5.0). Its tool generator filters on exactly one thing — `@Deprecated` — so
 every controller method becomes a tool, including `deleteTopic`, `deleteTopicMessages`, `executeKsql` and
-`resetConsumerGroupOffsets`.
-There is no read-only switch and no `readOnlyHint` annotations. The per-cluster `readOnly` flag does not help
-either: it is enforced by a Spring `WebFilter`, and MCP calls reach the controllers by reflection without passing
-through the filter chain. That was fixed on `main` in [#1766](https://github.com/kafbat/kafka-ui/pull/1766), but it
-is not in any release as of v1.5.0 — so on released kafbat, `mcp.enabled=true` grants any connected model
-unrestricted deletes, on read-only clusters too, unless RBAC happens to be configured.
+`resetConsumerGroupOffsets`. There is no read-only switch and no `readOnlyHint` annotations. The per-cluster
+`readOnly` flag does not help either: it is enforced by a Spring `WebFilter`, and MCP calls reach the controllers
+by reflection without passing through the filter chain. That was fixed on `main` in
+[#1766](https://github.com/kafbat/kafka-ui/pull/1766), but it is not in any release as of v1.5.0 — so on released
+kafbat, `mcp.enabled=true` grants any connected model unrestricted deletes, on read-only clusters too, unless RBAC
+happens to be configured.
 
-kafbat-mcp runs on your machine instead. If you can open kafbat in your browser, your MCP client can use it within
-your own kafbat permissions — and it is **read-only by default**, with writes behind two explicit opt-in flags.
+kafbat-mcp runs on your machine instead and signs in as you, so your MCP client works within your own kafbat
+permissions. With SSO it reuses the session from your browser and picks up a new one when it expires. It is
+**read-only by default**, with writes behind explicit, tiered opt-in flags.
 
 ## Quick start
 
@@ -62,6 +66,16 @@ afterwards. For Claude Code:
 claude mcp add -s user kafbat \
   -e KAFBAT_URL=https://kafka.example.com \
   -e KAFBAT_BROWSER=chrome \
+  -- uvx --from git+https://github.com/DenysFizer/kafbat-mcp@v0.2.0 kafbat-mcp
+```
+
+If your kafbat has a login form (`LOGIN_FORM` or LDAP) rather than SSO, sign in with credentials instead of the
+browser — see [Authentication](#authentication):
+
+```bash
+claude mcp add -s user kafbat \
+  -e KAFBAT_URL=https://kafka.example.com \
+  -e KAFBAT_AUTH=form -e KAFBAT_USERNAME=you -e KAFBAT_PASSWORD='…' \
   -- uvx --from git+https://github.com/DenysFizer/kafbat-mcp@v0.2.0 kafbat-mcp
 ```
 
@@ -132,16 +146,16 @@ orders.v1"*.
 |---|---|---|
 | `list_clusters` | Clusters with status, broker/topic counts, features | `GET /api/clusters` |
 | `list_topics` | Paged topic list, optional name search | `GET /api/clusters/{cluster}/topics` |
-| `describe_topic` | Partitions, offsets, non-default configs | `GET …/topics/{topic}` + `…/config` |
+| `describe_topic` | Partitions, offsets, non-default configs, and the consumer groups reading it | `GET …/topics/{topic}` + `…/config` + `…/consumer-groups` |
 | `list_consumer_groups` | Paged groups with state, members, total lag | `GET …/consumer-groups/paged` |
 | `describe_consumer_group` | Per-partition offsets and lag | `GET …/consumer-groups/{id}` |
-| `consume_messages` | Messages by `LATEST`/`EARLIEST`/offset/timestamp, with string or CEL smart filters and cursor paging; long values truncated | `GET …/topics/{topic}/messages/v2` |
+| `consume_messages` | Messages by `LATEST`/`EARLIEST`/offset/timestamp, with string or CEL smart filters and cursor paging; long values truncated | `GET …/topics/{topic}/messages/v2`, plus `POST …/smartfilters` with `smart_filter` |
 | `list_schemas` | Schema Registry subjects (metadata only) | `GET …/schemas` |
 | `get_schema` | Latest or a specific schema version, plus every available version | `GET …/schemas/{subject}/latest` + `…/versions` |
 | `cluster_health` | Offline/under-replicated partitions, active controller, disk usage, per-broker load | `GET …/stats` + `…/brokers` |
 | `describe_broker` | Non-default broker config and log dirs, with failed disks flagged | `GET …/brokers/{id}/configs` + `…/brokers/logdirs` |
 | `list_connectors` | Connectors across all Connect clusters with state and failed-task counts | `GET …/connectors` |
-| `describe_connector` | Connector state, masked config, and per-task failure traces | `GET …/connectors/{name}` + `…/tasks` |
+| `describe_connector` | Connector state, masked config, and per-task failure traces | `GET …/connects/{connect}/connectors/{name}` + `…/tasks` |
 | `list_acls` | ACLs as CSV | `GET …/acl/csv` |
 | `whoami` | The authenticated user and its RBAC permissions | `GET /api/authorization` |
 
@@ -151,11 +165,11 @@ orders.v1"*.
 |---|---|---|
 | `produce_message` | additive | `POST …/topics/{topic}/messages` |
 | `create_topic` | additive | `POST …/topics` |
-| `update_connector_state` | additive | `POST …/connectors/{name}/action/{action}` |
+| `update_connector_state` | additive | `POST …/connects/{connect}/connectors/{name}/action/{action}` |
 | `reset_consumer_group_offsets` | destructive | `POST …/consumer-groups/{id}/offsets` |
 | `delete_topic` | destructive | `DELETE …/topics/{topic}` |
 
-<i>Responses are compact JSON with <code>null</code> fields removed, to keep context small.</i>
+<i>Responses are compact JSON with <code>null</code> fields removed, to keep context small; <code>list_acls</code> returns kafbat's CSV.</i>
 
 ## Write access
 
@@ -210,8 +224,11 @@ API-key, service-account or personal-access-token mechanism upstream.
 
 1. On the first tool call the server obtains credentials for the configured `KAFBAT_AUTH` strategy and validates
    them against `GET /api/clusters`. For `cookie` that means reading kafbat's `SESSION` cookie from your browser
-   profile with [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s extraction, which decrypts it via your OS keyring.
-2. It calls kafbat's REST API with those credentials — `GET` only, redirects not followed.
+   profile with [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s extraction, decrypting it with your OS keyring where
+   the browser encrypts cookies (Chromium-based browsers do, Firefox does not). For `form` it posts your username
+   and password to kafbat's `/login` and keeps the session cookie it gets back.
+2. It calls kafbat's REST API with those credentials, never following redirects. Reads are `GET`s; the only other
+   requests are the smart-filter registration and, if you enable them, the write tools.
 3. On a 401 or a redirect to the login page it re-authenticates. In `cookie` mode, if the browser's cookie is
    stale too, it opens kafbat in the configured browser profile, waits for the new cookie (an SSO login usually
    completes on its own) and retries.
@@ -239,10 +256,14 @@ API-key, service-account or personal-access-token mechanism upstream.
 | `KAFBAT_LOGIN_WAIT_SECONDS` | `45` | How long to wait for a fresh cookie after opening the browser |
 | `KAFBAT_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` (logs go to stderr) |
 
+`KAFBAT_BROWSER`, `KAFBAT_BROWSER_PROFILE`, `KAFBAT_KEYRING`, `KAFBAT_AUTO_OPEN`, `KAFBAT_OPEN_COMMAND` and
+`KAFBAT_LOGIN_WAIT_SECONDS` apply only to `KAFBAT_AUTH=cookie`.
+
 ## Security
 
-Credentials — the session cookie or your `KAFBAT_PASSWORD` — stay in memory and are sent
-only to `KAFBAT_URL`; redirects are not followed, so nothing leaks to an identity provider you did not configure.
+The session cookie stays in memory. Credentials — the cookie, or your `KAFBAT_PASSWORD` from the client's config —
+are sent only to `KAFBAT_URL`; redirects are not followed, so nothing leaks to an identity provider you did not
+configure.
 
 > [!IMPORTANT]
 > By default no tool can change cluster state; see [Write access](#write-access) before enabling the write
@@ -256,15 +277,24 @@ or credential.
 ## Requirements and platform support
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), Python 3.10+
-- A kafbat instance you can log in to in a local browser
-- **Linux:** tested (GNOME Keyring, Firefox). **macOS:** should work (Keychain), untested.
-  **Windows:** not supported for Chromium browsers (App-Bound Encryption).
+- A kafbat instance reachable from your machine; for an SSO deployment, a local browser you are logged in to it with
+- **Browser cookies (`cookie` mode) — Linux:** tested (GNOME Keyring, Firefox). **macOS:** should work
+  (Keychain), untested. **Windows:** not supported for Chromium browsers (App-Bound Encryption).
 - **kafbat v1.3.0 through `main`.** CI runs the integration suite against v1.3.0, v1.4.2, v1.5.0 and `main`
   every week, so an upstream change shows up here before it reaches you.
 
 ---
 
 ## Troubleshooting
+
+<details>
+<summary><code>kafbat requires authentication</code> / <code>kafbat rejected the login</code></summary>
+
+`KAFBAT_AUTH` does not match how your kafbat is set up. *requires authentication* means kafbat has a login and
+`KAFBAT_AUTH=none` sends nothing: use `cookie` for SSO, or `form` for a login form or LDAP. *rejected the login*
+means `form` reached kafbat but the username or password is wrong. To see which kind of login your instance
+uses, open `https://<your-kafbat>/api/config/authentication` — it is public and returns `authType`.
+</details>
 
 <details>
 <summary><code>No valid kafbat session</code> / <code>No kafbat session after 45s</code></summary>
@@ -335,7 +365,12 @@ Logs go to stderr: in Claude Code use `claude --debug`.
 
 - Writes cover the common operations only; ksqlDB, ACL and schema mutation are not exposed.
 - `TAILING` (live) message mode isn't exposed, because MCP tool calls must finish.
-- Built-in kafbat serdes only. Custom serde names can be passed via `key_serde`/`value_serde`.
+- `produce_message` writes with the `String` serde unless told otherwise; for a topic with a registered schema,
+  pass `value_serde="SchemaRegistry"` (or whichever serde kafbat offers). `consume_messages` lets kafbat pick the
+  serde and accepts the same overrides.
+- `reset_consumer_group_offsets` only works on a group with no active members — kafbat refuses otherwise.
+- A consumer group with no active members appears in `describe_topic` only after kafbat's statistics refresh
+  (every 30s by default), so a group that has just stopped can be missing for a moment.
 
 ## Development
 
@@ -347,11 +382,11 @@ uv sync
 uv run pytest                  # offline tests against a mocked kafbat, ~2s, no Docker
 uv run ruff check
 
-# integration tests: real kafbat UI + Kafka + Schema Registry + Connect in Docker, ~1min once cached
+# integration tests: real kafbat UI + Kafka + Schema Registry + Connect in Docker, ~2 min once cached
 KAFBAT_INTEGRATION=1 uv run pytest tests/test_integration.py
 
-# run the whole suite against several kafbat releases (Kafka/Schema Registry/Connect are shared,
-# so each extra release costs only one more kafbat boot, ~25s)
+# run the whole suite against several kafbat releases (Kafka, Schema Registry and Connect are shared;
+# each extra release boots only its own three kafbat containers)
 KAFBAT_INTEGRATION=1 KAFBAT_IMAGES=ghcr.io/kafbat/kafka-ui:v1.3.0,ghcr.io/kafbat/kafka-ui:main \
   uv run pytest tests/test_integration.py
 

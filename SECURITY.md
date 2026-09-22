@@ -24,8 +24,9 @@ kafbat-mcp runs locally, as your user. How it authenticates depends on `KAFBAT_A
 ## What it can change
 
 **By default, nothing.** `KAFBAT_READ_ONLY` defaults to `true`, and in that mode no tool can create, change or
-delete anything in your clusters. The single non-`GET` request is `registerFilter`, which stores a smart-filter
-expression in kafbat so it can apply it while *reading* messages.
+delete anything in your clusters. Two kinds of non-`GET` request remain, and neither changes cluster state:
+`POST /login` when `KAFBAT_AUTH=form`, and `registerFilter`, which stores a smart-filter expression in kafbat so it
+can apply it while *reading* messages.
 
 Write tools exist, behind explicit opt-in:
 

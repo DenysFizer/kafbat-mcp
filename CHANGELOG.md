@@ -9,13 +9,21 @@ All notable changes to this project are documented here. The format follows
 - Dependabot for Python dependencies (`uv.lock`) and GitHub Actions, weekly, minor and patch bumps grouped.
 - Issue templates for bugs and feature requests, `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
 
+### Changed
+- README, `SECURITY.md` and `CONTRIBUTING.md` reviewed against the code: they no longer describe only the
+  browser-cookie login, claim that every request is a `GET`, or misstate how kafbat's own MCP server handles
+  RBAC; the tools table gives the real Connect paths; Limitations and Troubleshooting cover what the
+  integration tests found.
+
 ## [0.2.0] - 2026-09-22
 
 ### Added
 - Write tools, **off by default**, in two tiers: `KAFBAT_READ_ONLY=false` registers `produce_message`,
   `create_topic` and `update_connector_state`; `KAFBAT_ALLOW_DESTRUCTIVE=true` additionally registers
   `delete_topic` and `reset_consumer_group_offsets`. `KAFBAT_ENABLE_TOOLS` admits named tools regardless
-  of tier, so read-only need not be abandoned to recover one tool.
+  of tier, so read-only need not be abandoned to recover one tool. `produce_message` always sends both serdes
+  (default `String`), and `reset_consumer_group_offsets` resolves the topic's partitions when none are given:
+  without them kafbat rejects the first and silently resets nothing in the second.
 - Every tool now declares MCP annotations, and the tiers filter on those annotations rather than on a
   separate list of tool names, so a tool's label and its gate cannot disagree. A tool the tier excludes is
   not registered, so it is absent from `tools/list` and unknown to `tools/call`.
@@ -32,33 +40,19 @@ All notable changes to this project are documented here. The format follows
   and `LDAP` — they share one Spring chain). Bearer tokens are deliberately not supported: kafbat only accepts
   them with `auth.oauth2.resourceServer.*` configured, and with RBAC enabled they make `validateAccess` fail
   open while list endpoints return nothing.
-
-### Fixed
-- `produce_message` now always sends `keySerde`/`valueSerde` (default `String`). kafbat rejects the request
-  with a misleading `500 Value is undefined` when either is absent — found by the new integration tests.
-- `reset_consumer_group_offsets` now always sends an explicit `partitions` list, resolving it from the topic
-  when the caller omits it. kafbat answers `200` to a reset with no `partitions` and then resets nothing, so
-  the tool used to report success for work that never happened.
-- `consume_messages` documented `smart_filter` as Groovy with `key`/`value` bindings, which is the old
-  provectus dialect. kafbat evaluates **CEL** over a single `record` binding
-  (`record.value.orderId == 42`, `record.keyAsText`, …); the old form failed to compile server-side.
-- kafbat instances with `auth.type: DISABLED` — kafbat's default — are now reachable. Previously the server had
-  no way to authenticate without a browser cookie, so it opened a browser and failed after the login timeout.
-
-### Added (release)
+- Integration tests against a real kafbat UI, Kafka, Schema Registry and Kafka Connect in Docker via
+  testcontainers, covering every tool except `list_acls`, all three auth modes and the write tiers. Opt-in with
+  `KAFBAT_INTEGRATION=1`; the default `pytest` run stays offline and takes ~2s. `KAFBAT_IMAGES` re-runs the suite
+  against several kafbat releases, sharing Kafka, Schema Registry and Connect between them. Verified on v1.3.0,
+  v1.4.2, v1.5.0 (= `latest`) and `main`.
 - CI runs the integration suite against kafbat v1.3.0, v1.4.2, v1.5.0 and `main` on every pull request and
   weekly, one parallel job per release; a failure on upstream `main` is reported but does not block.
 - Publishing a GitHub release uploads to PyPI through trusted publishing — no API token is stored anywhere.
   The job refuses to publish if the release tag does not match the `pyproject.toml` version.
 
-### Added (testing)
-- Integration tests against a real kafbat UI and Kafka in Docker via testcontainers, covering reads, the
-  create/produce/consume round trip, smart filters, topic deletion, consumer-group offset resets, the write
-  tiers and form login. The offset-reset test builds a real, then inactive, consumer group with the broker's
-  own console consumer, so no Kafka client library is needed. Opt-in with `KAFBAT_INTEGRATION=1`; the default
-  `pytest` run stays offline and takes ~2s. `KAFBAT_IMAGES` re-runs the suite against several kafbat
-  releases; only the kafbat container is parametrised, so each extra release costs one boot rather than
-  a whole stack. Verified green on v1.3.0, v1.4.2, v1.5.0 (= `latest`) and `main`.
+### Fixed
+- kafbat instances with `auth.type: DISABLED` — kafbat's default — are now reachable. Previously the server had
+  no way to authenticate without a browser cookie, so it opened a browser and failed after the login timeout.
 
 ### Changed
 - Use `httpx2` (already required by `mcp`) instead of the unmaintained `httpx` 0.28 line — one HTTP client instead
@@ -68,7 +62,7 @@ All notable changes to this project are documented here. The format follows
 - `KAFBAT_LOGIN_WAIT_SECONDS` now defaults to 45s so a slow re-login fails with our own message instead of hitting
   the client's 60s tool timeout.
 
-## [0.1.0]
+## [0.1.0] - 2026-09-18
 
 ### Added
 - Read-only tools: `list_clusters`, `list_topics`, `describe_topic`, `list_consumer_groups`,
