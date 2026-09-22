@@ -339,6 +339,8 @@ Logs go to stderr: in Claude Code use `claude --debug`.
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull-request flow and how to add a tool.
+
 ```bash
 git clone https://github.com/DenysFizer/kafbat-mcp && cd kafbat-mcp
 uv sync

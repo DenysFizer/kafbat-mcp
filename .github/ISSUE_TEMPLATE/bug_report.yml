@@ -1,0 +1,55 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security issues go to a [private advisory](https://github.com/DenysFizer/kafbat-mcp/security/advisories/new),
+        not here. Before pasting logs, redact your kafbat URL, cookies, passwords and any message payloads.
+  - type: input
+    id: version
+    attributes:
+      label: kafbat-mcp version
+      description: The tag you install, as in `git+https://github.com/DenysFizer/kafbat-mcp@<tag>`.
+      placeholder: v0.2.0
+    validations:
+      required: true
+  - type: input
+    id: kafbat
+    attributes:
+      label: kafbat UI version
+      description: Shown in kafbat's UI, or the image tag you run.
+      placeholder: v1.5.0
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: KAFBAT_AUTH
+      options: [cookie, form, none]
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: Claude Code, Claude Desktop, Cursor, VS Code…
+  - type: input
+    id: platform
+    attributes:
+      label: OS and browser
+      placeholder: Ubuntu 24.04, Chrome
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Run with `KAFBAT_LOG_LEVEL=DEBUG`; the server logs to stderr.
+      render: text

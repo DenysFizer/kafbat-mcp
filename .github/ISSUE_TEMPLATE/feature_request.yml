@@ -1,0 +1,27 @@
+name: Feature request
+description: A tool or option kafbat-mcp should have.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The question you want to ask your AI client, or the task it cannot do today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed tool or option
+      description: If you know it, the kafbat REST endpoint it would use.
+  - type: dropdown
+    id: writes
+    attributes:
+      label: Does it change cluster state?
+      description: Writes are opt-in and tiered; see the README's "Write access" section.
+      options:
+        - No, read-only
+        - Yes, additive (creates or changes something, loses no data)
+        - Yes, destructive (deletes data or rewinds offsets)
+    validations:
+      required: true
