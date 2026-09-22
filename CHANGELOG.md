@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Dependabot for Python dependencies (`uv.lock`) and GitHub Actions, weekly, minor and patch bumps grouped.
+- Issue templates for bugs and feature requests, `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
+
 ## [0.2.0] - 2026-09-22
 
 ### Added

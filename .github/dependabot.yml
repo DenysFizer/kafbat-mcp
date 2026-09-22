@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # Python dependencies, read from uv.lock. Minor and patch bumps arrive as one grouped PR; a major version
+  # (e.g. mcp 3.x) gets its own PR, since that is where breaking changes live.
+  # yt-dlp matters most here: kafbat-mcp uses its internal cookies API, and the integration suite's Firefox
+  # test is what catches a release that changes it.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Actions used by the workflows (checkout, setup-uv).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
