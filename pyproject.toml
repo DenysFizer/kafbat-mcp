@@ -1,7 +1,7 @@
 [project]
 name = "kafbat-mcp"
-version = "0.1.0"
-description = "Read-only MCP server for kafbat UI (Kafka UI) that reuses your browser session"
+version = "0.2.0"
+description = "MCP server for kafbat UI (Kafka UI) that reuses your browser session; read-only by default"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -40,6 +40,7 @@ dev = [
     "pytest>=9",
     "pytest-asyncio>=1.4",
     "ruff>=0.16",
+    "testcontainers>=4",
 ]
 
 [build-system]

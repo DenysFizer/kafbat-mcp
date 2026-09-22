@@ -1,4 +1,4 @@
-"""kafbat HTTP client that borrows the session cookie from a local browser profile."""
+"""kafbat HTTP client. Authenticates with one of kafbat's auth types (see Config.auth)."""
 
 from __future__ import annotations
 
@@ -31,6 +31,12 @@ CHROMIUM_EXECUTABLES = {
     "edge": ("microsoft-edge", "microsoft-edge-stable"),
     "vivaldi": ("vivaldi", "vivaldi-stable"),
     "opera": ("opera",),
+}
+
+# `cookie` is missing on purpose: it raises its own message from _browser_cookie.
+AUTH_HINTS = {
+    "none": "kafbat requires authentication. Set KAFBAT_AUTH to form or cookie.",
+    "form": "kafbat rejected the login. Check KAFBAT_USERNAME and KAFBAT_PASSWORD.",
 }
 
 
@@ -127,7 +133,8 @@ class Kafbat:
         )
         self._cookie_reader = cookie_reader or self._extract_browser_cookie
         self._open = opener or (lambda url: open_login_page(cfg, url))
-        self._cookie: str | None = None
+        # Credential headers for the configured strategy; None until established. {} is valid (auth `none`).
+        self._headers: dict[str, str] | None = None
         self._lock = asyncio.Lock()
 
     def _extract_browser_cookie(self) -> str | None:
@@ -146,24 +153,40 @@ class Kafbat:
         except Exception as e:
             raise ToolError(f"Cannot read cookies from {self.cfg.browser}: {e}") from e
 
-    async def _request(self, path: str, params: Any = None, cookie: str | None = None) -> httpx2.Response:
-        # Explicit header: httpx2 then skips its own cookie jar, so Set-Cookie from redirects can't leak in.
-        headers = {"Cookie": f"{self.cfg.cookie_name}={cookie}"} if cookie else None
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        params: Any = None,
+        headers: dict[str, str] | None = None,
+        data: Any = None,
+        json: Any = None,
+    ) -> httpx2.Response:
+        # Explicit headers: httpx2 then skips its own cookie jar, so Set-Cookie from redirects can't leak in.
         try:
-            return await self.http.get(path, params=params, headers=headers)
+            return await self.http.request(method, path, params=params, headers=headers, data=data, json=json)
         except httpx2.HTTPError as e:
             raise ToolError(f"kafbat unreachable ({type(e).__name__}: {e}). Is the network/VPN up?") from e
 
-    async def _cookie_accepted(self, cookie: str | None) -> bool:
-        return bool(cookie) and not auth_failed(await self._request("/api/clusters", cookie=cookie))
+    async def _accepted(self, headers: dict[str, str] | None) -> bool:
+        return headers is not None and not auth_failed(await self._request("GET", "/api/clusters", headers=headers))
 
-    async def _refresh_session(self) -> None:
-        if await self._cookie_accepted(self._cookie):  # refreshed concurrently while we waited for the lock
-            return
+    def _cookie_header(self, value: str) -> dict[str, str]:
+        return {"Cookie": f"{self.cfg.cookie_name}={value}"}
+
+    async def _form_login(self) -> dict[str, str]:
+        """kafbat's LOGIN_FORM and LDAP share one Spring formLogin chain; CSRF is disabled, so no token needed."""
+        resp = await self._request(
+            "POST", "/login", data={"username": self.cfg.username, "password": self.cfg.password}
+        )
+        session = resp.cookies.get(self.cfg.cookie_name)
+        # On bad credentials kafbat answers 302 to /login?error with no session cookie.
+        return self._cookie_header(session) if session else {}
+
+    async def _browser_cookie(self) -> dict[str, str]:
         stale = await self._read_cookie()
-        if await self._cookie_accepted(stale):
-            self._cookie = stale
-            return
+        if stale and await self._accepted(self._cookie_header(stale)):
+            return self._cookie_header(stale)
         hint = f"Log in to {self.cfg.url} in {self.cfg.browser} and retry."
         if not self.cfg.auto_open:
             raise ToolError(f"No valid kafbat session. {hint}")
@@ -173,34 +196,59 @@ class Kafbat:
         while loop.time() < deadline:
             await asyncio.sleep(LOGIN_POLL_SECONDS)
             fresh = await self._read_cookie()
-            if fresh and fresh != stale and await self._cookie_accepted(fresh):
-                self._cookie = fresh
-                return
+            if fresh and fresh != stale and await self._accepted(self._cookie_header(fresh)):
+                return self._cookie_header(fresh)
         raise ToolError(f"No kafbat session after {self.cfg.login_wait_seconds:.0f}s. {hint}")
 
-    async def get(self, path: str, params: Any = None) -> httpx2.Response:
-        if self._cookie:
-            resp = await self._request(path, params, self._cookie)
+    async def _obtain(self) -> dict[str, str]:
+        """Credential headers for the configured strategy, already validated against /api/clusters."""
+        if self.cfg.auth == "cookie":
+            return await self._browser_cookie()  # validates as it polls
+        headers: dict[str, str] = {} if self.cfg.auth == "none" else await self._form_login()
+        if not await self._accepted(headers):
+            raise ToolError(AUTH_HINTS[self.cfg.auth])
+        return headers
+
+    async def _refresh(self) -> None:
+        if await self._accepted(self._headers):  # refreshed concurrently while we waited for the lock
+            return
+        self._headers = None
+        self._headers = await self._obtain()
+
+    async def _send(self, method: str, path: str, params: Any = None, json: Any = None) -> httpx2.Response:
+        """Re-authenticates once on a 401/login redirect. Safe to retry: such a response means nothing ran."""
+        if self._headers is not None:
+            resp = await self._request(method, path, params, self._headers, json=json)
             if not auth_failed(resp):
                 return checked(resp)
         async with self._lock:
-            await self._refresh_session()
-        resp = await self._request(path, params, self._cookie)
+            await self._refresh()
+        resp = await self._request(method, path, params, self._headers, json=json)
         if auth_failed(resp):
-            raise ToolError("kafbat rejected a freshly obtained session. Check RBAC permissions.")
+            raise ToolError("kafbat rejected freshly obtained credentials. Check RBAC permissions.")
         return checked(resp)
+
+    async def get(self, path: str, params: Any = None) -> httpx2.Response:
+        return await self._send("GET", path, params)
 
     async def get_json(self, path: str, params: Any = None) -> Any:
         return (await self.get(path, params)).json()
+
+    async def post(self, path: str, json: Any = None) -> httpx2.Response:
+        return await self._send("POST", path, json=json)
+
+    async def post_json(self, path: str, json: Any = None) -> Any:
+        return (await self.post(path, json)).json()
+
+    async def delete(self, path: str) -> httpx2.Response:
+        return await self._send("DELETE", path)
 
     async def keepalive(self) -> None:
         while True:
             await asyncio.sleep(self.cfg.keepalive_seconds)
             try:
-                if not self._cookie:
-                    self._cookie = await self._read_cookie()
-                if self._cookie and not await self._cookie_accepted(self._cookie):
-                    log.warning("kafbat session expired; will re-login on next tool call")
-                    self._cookie = None
+                if self._headers is not None and not await self._accepted(self._headers):
+                    log.warning("kafbat session expired; will re-authenticate on next tool call")
+                    self._headers = None
             except ToolError as e:
                 log.warning("keepalive failed: %s", e)

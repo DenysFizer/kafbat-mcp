@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # weekly: catches kafbat `main` and yt-dlp drift with no change on our side
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,3 +26,24 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check
       - run: uv run pytest
+
+  integration:
+    # Real kafbat, Kafka, Schema Registry and Connect in Docker. One job per kafbat release, so they run in
+    # parallel on separate runners instead of contending for one machine.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kafbat: [v1.3.0, v1.4.2, v1.5.0, main]
+    # Upstream `main` can break with no change on our side: report it, don't block pull requests on it.
+    continue-on-error: ${{ matrix.kafbat == 'main' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: "3.13"
+      - run: uv sync --locked
+      - run: uv run pytest tests/test_integration.py
+        env:
+          KAFBAT_INTEGRATION: "1"
+          KAFBAT_IMAGES: ghcr.io/kafbat/kafka-ui:${{ matrix.kafbat }}

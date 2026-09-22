@@ -8,6 +8,9 @@ from urllib.parse import quote
 
 MESSAGE_FIELDS = ("partition", "offset", "timestamp", "keySerde", "valueSerde", "headers")
 
+# Connect configs are a free-form map with no sensitivity flag, unlike topic/broker configs, so redact by key name.
+SECRET_KEY_HINTS = ("password", "passwd", "secret", "token", "credential")
+
 
 def path_seg(value: str) -> str:
     return quote(value, safe="")
@@ -26,8 +29,40 @@ def to_json(obj: Any) -> str:
     return json.dumps(prune(obj), ensure_ascii=False, separators=(",", ":"))
 
 
+def as_text(value: Any) -> Any:
+    """Kafka keys and values are text on the wire.
+
+    The MCP SDK JSON-parses any string argument that looks like JSON, so a JSON payload reaches the tool as a
+    dict or list. Re-serialise it — and unlike to_json, keep nulls: dropping them would alter the message.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
 def pick(d: dict, *keys: str) -> dict:
     return {k: d[k] for k in keys if d.get(k) is not None}
+
+
+def non_default(configs: list[dict]) -> dict[str, Any]:
+    """Config entries that differ from the cluster default, minus the ones kafbat flags as sensitive."""
+    return {
+        c["name"]: c.get("value")
+        for c in configs
+        if c.get("source") != "DEFAULT_CONFIG" and not c.get("isSensitive")
+    }
+
+
+def mask_secrets(config: Any) -> Any:
+    if not isinstance(config, dict):
+        return config
+    return {k: ("***" if any(h in k.lower() for h in SECRET_KEY_HINTS) else v) for k, v in config.items()}
+
+
+def trim_trace(status: Any, limit: int) -> None:
+    """Connect failure traces are whole Java stacktraces; the top frames carry the cause."""
+    if isinstance(status, dict) and status.get("trace"):
+        status["trace"] = truncate(status["trace"], limit)
 
 
 def truncate(value: str | None, limit: int) -> str | None:

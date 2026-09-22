@@ -1,0 +1,33 @@
+name: Release
+
+# Publishing a GitHub release (tag `vX.Y.Z`) uploads that version to PyPI. Nothing else triggers it.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # PyPI trusted publishing: no API token is stored in the repo or its secrets
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: "3.13"
+      # A PyPI version can never be re-uploaded, so a mismatched tag must fail here rather than publish.
+      - name: Tag must match the package version
+        run: |
+          version="$(uv version --short)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::release tag $GITHUB_REF_NAME does not match pyproject version v$version"
+            exit 1
+          fi
+      - run: uv sync --locked
+      - run: uv run pytest
+      - run: uv build
+      - run: uv publish
