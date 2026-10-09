@@ -1,9 +1,11 @@
-<!-- absolute URLs: PyPI renders this README too, and relative paths don't resolve there -->
-<p align="center">
-  <img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/readme/hero.svg" width="100%" alt="kafbat-mcp, an MCP server for kafbat UI: work with Kafka from your AI client, signed in with your own kafbat login, read-only by default. Example: describe_topic on orders.v1 shows three partitions and the consumer group billing with a lag of 7.">
-</p>
-
 <div align="center">
+
+<!-- absolute URL: PyPI renders this README too, and relative paths don't resolve there -->
+<img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/logo.svg" alt="" width="300">
+
+# kafbat-mcp
+
+**MCP server for kafbat UI — work with Kafka from your AI client,<br>signed in with your existing kafbat login. Read-only by default.**
 
 [![CI](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -28,10 +30,6 @@ see.
 [Limitations](#limitations) · [Development](#development)
 
 ## How it works
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/readme/workflow.svg" width="100%" alt="Your MCP client calls kafbat-mcp, which runs on your machine and is read-only by default. kafbat-mcp signs in to kafbat UI as you, with your browser session for SSO or your username and password for a login form, so kafbat's RBAC applies; kafbat UI reads topics, lag, messages and schemas from Kafka, with no broker credentials.">
-</p>
 
 1. On the first tool call the server obtains credentials for the configured `KAFBAT_AUTH` strategy and validates
    them against `GET /api/clusters`. For `cookie` that means reading kafbat's `SESSION` cookie from your browser
