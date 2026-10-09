@@ -22,26 +22,20 @@ see.
 > [!NOTE]
 > Not affiliated with or endorsed by the kafbat project.
 
-[How it works](#how-it-works) · [Why kafbat-mcp](#why-kafbat-mcp) · [Quick start](#quick-start) · [Tools](#tools) ·
+[Why kafbat-mcp](#why-kafbat-mcp) · [Quick start](#quick-start) · [Tools](#tools) ·
 [Write access](#write-access) · [Authentication](#authentication) · [Configuration](#configuration) ·
 [Security](#security) · [Requirements](#requirements-and-platform-support) · [Troubleshooting](#troubleshooting) ·
 [Limitations](#limitations) · [Development](#development)
 
-## How it works
-
-1. On the first tool call the server obtains credentials for the configured `KAFBAT_AUTH` strategy and validates
-   them against `GET /api/clusters`. For `cookie` that means reading kafbat's `SESSION` cookie from your browser
-   profile with [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s extraction, decrypting it with your OS keyring where
-   the browser encrypts cookies (Chromium-based browsers do, Firefox does not). For `form` it posts your username
-   and password to kafbat's `/login` and keeps the session cookie it gets back.
-2. It calls kafbat's REST API with those credentials, never following redirects. Reads are `GET`s; the only other
-   requests are the smart-filter registration and, if you enable them, the write tools.
-3. On a 401 or a redirect to the login page it re-authenticates. In `cookie` mode, if the browser's cookie is
-   stale too, it opens kafbat in the configured browser profile, waits for the new cookie (an SSO login usually
-   completes on its own) and retries.
-4. While your MCP client is running, a periodic request keeps the session from idling out.
-
 ## Why kafbat-mcp
+
+kafbat's own MCP server is off by default, cannot complete an SSO login, and (as of v1.5.0) turns every API call
+into a tool — `deleteTopic` and `resetConsumerGroupOffsets` included — with no read-only switch. kafbat-mcp runs on
+your machine instead, signs in as you, and is **read-only by default**, with writes behind explicit, tiered opt-in
+flags.
+
+<details>
+<summary>Why not kafbat's built-in MCP server, in detail</summary>
 
 kafbat ships its own MCP server, but it is **off by default** (`mcp.enabled`), so enabling it needs a config change
 and a redeploy from whoever runs kafbat. It sits behind kafbat's normal authentication, and an MCP client cannot
@@ -56,10 +50,7 @@ by reflection without passing through the filter chain. That was fixed on `main`
 [#1766](https://github.com/kafbat/kafka-ui/pull/1766), but it is not in any release as of v1.5.0 — so on released
 kafbat, `mcp.enabled=true` grants any connected model unrestricted deletes, on read-only clusters too, unless RBAC
 happens to be configured.
-
-kafbat-mcp runs on your machine instead and signs in as you, so your MCP client works within your own kafbat
-permissions. With SSO it reuses the session from your browser and picks up a new one when it expires. It is
-**read-only by default**, with writes behind explicit, tiered opt-in flags.
+</details>
 
 ## Quick start
 
@@ -148,34 +139,60 @@ orders.v1"*.
 
 ## Tools
 
-| Tool | What it returns | kafbat endpoint |
-|---|---|---|
-| `list_clusters` | Clusters with status, broker/topic counts, features | `GET /api/clusters` |
-| `list_topics` | Paged topic list, optional name search | `GET /api/clusters/{cluster}/topics` |
-| `describe_topic` | Partitions, offsets, non-default configs, and the consumer groups reading it | `GET …/topics/{topic}` + `…/config` + `…/consumer-groups` |
-| `list_consumer_groups` | Paged groups with state, members, total lag | `GET …/consumer-groups/paged` |
-| `describe_consumer_group` | Per-partition offsets and lag | `GET …/consumer-groups/{id}` |
-| `consume_messages` | Messages by `LATEST`/`EARLIEST`/offset/timestamp, with string or CEL smart filters and cursor paging; long values truncated | `GET …/topics/{topic}/messages/v2`, plus `POST …/smartfilters` with `smart_filter` |
-| `list_schemas` | Schema Registry subjects (metadata only) | `GET …/schemas` |
-| `get_schema` | Latest or a specific schema version, plus every available version | `GET …/schemas/{subject}/latest` + `…/versions` |
-| `cluster_health` | Offline/under-replicated partitions, active controller, disk usage, per-broker load | `GET …/stats` + `…/brokers` |
-| `describe_broker` | Non-default broker config and log dirs, with failed disks flagged | `GET …/brokers/{id}/configs` + `…/brokers/logdirs` |
-| `list_connectors` | Connectors across all Connect clusters with state and failed-task counts | `GET …/connectors` |
-| `describe_connector` | Connector state, masked config, and per-task failure traces | `GET …/connects/{connect}/connectors/{name}` + `…/tasks` |
-| `list_acls` | ACLs as CSV | `GET …/acl/csv` |
-| `whoami` | The authenticated user and its RBAC permissions | `GET /api/authorization` |
+| Tool | What it returns |
+|---|---|
+| `list_clusters` | Clusters with status, broker/topic counts, features |
+| `list_topics` | Paged topic list, optional name search |
+| `describe_topic` | Partitions, offsets, non-default configs, and the consumer groups reading it |
+| `list_consumer_groups` | Paged groups with state, members, total lag |
+| `describe_consumer_group` | Per-partition offsets and lag |
+| `consume_messages` | Messages by `LATEST`/`EARLIEST`/offset/timestamp, with string or CEL smart filters and cursor paging; long values truncated |
+| `list_schemas` | Schema Registry subjects (metadata only) |
+| `get_schema` | Latest or a specific schema version, plus every available version |
+| `cluster_health` | Offline/under-replicated partitions, active controller, disk usage, per-broker load |
+| `describe_broker` | Non-default broker config and log dirs, with failed disks flagged |
+| `list_connectors` | Connectors across all Connect clusters with state and failed-task counts |
+| `describe_connector` | Connector state, masked config, and per-task failure traces |
+| `list_acls` | ACLs as CSV |
+| `whoami` | The authenticated user and its RBAC permissions |
 
 **Write tools**, off by default — see [Write access](#write-access):
 
-| Tool | Tier | kafbat endpoint |
-|---|---|---|
-| `produce_message` | additive | `POST …/topics/{topic}/messages` |
-| `create_topic` | additive | `POST …/topics` |
-| `update_connector_state` | additive | `POST …/connects/{connect}/connectors/{name}/action/{action}` |
-| `reset_consumer_group_offsets` | destructive | `POST …/consumer-groups/{id}/offsets` |
-| `delete_topic` | destructive | `DELETE …/topics/{topic}` |
+| Tool | Tier |
+|---|---|
+| `produce_message` | additive |
+| `create_topic` | additive |
+| `update_connector_state` | additive |
+| `reset_consumer_group_offsets` | destructive |
+| `delete_topic` | destructive |
 
 <i>Responses are compact JSON with <code>null</code> fields removed, to keep context small; <code>list_acls</code> returns kafbat's CSV.</i>
+
+<details>
+<summary>The kafbat endpoints each tool calls</summary>
+
+| Tool | kafbat endpoint |
+|---|---|
+| `list_clusters` | `GET /api/clusters` |
+| `list_topics` | `GET /api/clusters/{cluster}/topics` |
+| `describe_topic` | `GET …/topics/{topic}` + `…/config` + `…/consumer-groups` |
+| `list_consumer_groups` | `GET …/consumer-groups/paged` |
+| `describe_consumer_group` | `GET …/consumer-groups/{id}` |
+| `consume_messages` | `GET …/topics/{topic}/messages/v2`, plus `POST …/smartfilters` with `smart_filter` |
+| `list_schemas` | `GET …/schemas` |
+| `get_schema` | `GET …/schemas/{subject}/latest` + `…/versions` |
+| `cluster_health` | `GET …/stats` + `…/brokers` |
+| `describe_broker` | `GET …/brokers/{id}/configs` + `…/brokers/logdirs` |
+| `list_connectors` | `GET …/connectors` |
+| `describe_connector` | `GET …/connects/{connect}/connectors/{name}` + `…/tasks` |
+| `list_acls` | `GET …/acl/csv` |
+| `whoami` | `GET /api/authorization` |
+| `produce_message` | `POST …/topics/{topic}/messages` |
+| `create_topic` | `POST …/topics` |
+| `update_connector_state` | `POST …/connects/{connect}/connectors/{name}/action/{action}` |
+| `reset_consumer_group_offsets` | `POST …/consumer-groups/{id}/offsets` |
+| `delete_topic` | `DELETE …/topics/{topic}` |
+</details>
 
 ## Write access
 
@@ -187,10 +204,8 @@ Three tiers. **The default is read-only** — a fresh install cannot change anyt
 | Additive writes | `false` | `false` | + produce, create topic, connector actions |
 | Everything | `false` | `true` | + delete topic, reset offsets |
 
-A tool the tier does not admit is **not registered**: it is absent from `tools/list`, and calling it by name
-fails with `Unknown tool`, because the MCP SDK resolves calls through the same registry. There is no second
-list of write-tool names — the tier filters on each tool's own `readOnlyHint` / `destructiveHint` annotation,
-so a tool's label and its gate cannot disagree.
+A tool the tier does not admit is **not registered** — it is absent from `tools/list` and fails as `Unknown tool`
+if called by name. The tier reads each tool's own `readOnlyHint` / `destructiveHint`, so label and gate always agree.
 
 `KAFBAT_ENABLE_TOOLS` is the escape hatch: a comma-separated list of tool names admitted whatever the tier, so
 you need not abandon read-only mode to recover one tool.
@@ -218,6 +233,9 @@ autodetection, because an env var never guesses wrong.
 | `LOGIN_FORM` | `form` | `POST /login`, then the `SESSION` cookie it returns | `KAFBAT_USERNAME`, `KAFBAT_PASSWORD` |
 | `LDAP` / Active Directory | `form` | same — kafbat uses one Spring `formLogin` chain for both | `KAFBAT_USERNAME`, `KAFBAT_PASSWORD` |
 
+<details>
+<summary>Why not a bearer token or basic auth</summary>
+
 For an `OAUTH2` deployment, `cookie` is the only supported path. Bearer tokens are not: kafbat accepts them only
 when the operator sets `auth.oauth2.resourceServer.*`, and even then it wraps principals into `RbacUser` solely in
 the `oauth2Login` flow — so with RBAC on, a bearer request carries no user, list endpoints come back empty and
@@ -225,6 +243,23 @@ the `oauth2Login` flow — so with RBAC on, a bearer request carries no user, li
 
 kafbat never configures `httpBasic()`, so `Authorization: Basic` cannot work with any auth type. There is no
 API-key, service-account or personal-access-token mechanism upstream.
+</details>
+
+<details>
+<summary>How sign-in works</summary>
+
+1. On the first tool call the server obtains credentials for the configured `KAFBAT_AUTH` strategy and validates
+   them against `GET /api/clusters`. For `cookie` that means reading kafbat's `SESSION` cookie from your browser
+   profile with [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s extraction, decrypting it with your OS keyring where
+   the browser encrypts cookies (Chromium-based browsers do, Firefox does not). For `form` it posts your username
+   and password to kafbat's `/login` and keeps the session cookie it gets back.
+2. It calls kafbat's REST API with those credentials, never following redirects. Reads are `GET`s; the only other
+   requests are the smart-filter registration and, if you enable them, the write tools.
+3. On a 401 or a redirect to the login page it re-authenticates. In `cookie` mode, if the browser's cookie is
+   stale too, it opens kafbat in the configured browser profile, waits for the new cookie (an SSO login usually
+   completes on its own) and retries.
+4. While your MCP client is running, a periodic request keeps the session from idling out.
+</details>
 
 ## Configuration
 
