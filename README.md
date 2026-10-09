@@ -1,11 +1,9 @@
+<!-- absolute URLs: PyPI renders this README too, and relative paths don't resolve there -->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/readme/hero.svg" width="100%" alt="kafbat-mcp, an MCP server for kafbat UI: work with Kafka from your AI client, signed in with your own kafbat login, read-only by default. Example: describe_topic on orders.v1 shows three partitions and the consumer group billing with a lag of 7.">
+</p>
+
 <div align="center">
-
-<!-- absolute URL: PyPI renders this README too, and relative paths don't resolve there -->
-<img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/logo.svg" alt="" width="300">
-
-# kafbat-mcp
-
-**MCP server for kafbat UI — work with Kafka from your AI client,<br>signed in with your existing kafbat login. Read-only by default.**
 
 [![CI](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/DenysFizer/kafbat-mcp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -24,12 +22,28 @@ see.
 > [!NOTE]
 > Not affiliated with or endorsed by the kafbat project.
 
-## Contents
+[How it works](#how-it-works) · [Why kafbat-mcp](#why-kafbat-mcp) · [Quick start](#quick-start) · [Tools](#tools) ·
+[Write access](#write-access) · [Authentication](#authentication) · [Configuration](#configuration) ·
+[Security](#security) · [Requirements](#requirements-and-platform-support) · [Troubleshooting](#troubleshooting) ·
+[Limitations](#limitations) · [Development](#development)
 
-[Why kafbat-mcp](#why-kafbat-mcp) · [Quick start](#quick-start) · [Tools](#tools) ·
-[Write access](#write-access) · [Authentication](#authentication) · [How it works](#how-it-works) ·
-[Configuration](#configuration) · [Security](#security) · [Requirements](#requirements-and-platform-support) ·
-[Troubleshooting](#troubleshooting) · [Limitations](#limitations) · [Development](#development) · [License](#license)
+## How it works
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/readme/workflow.svg" width="100%" alt="Your MCP client calls kafbat-mcp, which runs on your machine and is read-only by default. kafbat-mcp signs in to kafbat UI as you, with your browser session for SSO or your username and password for a login form, so kafbat's RBAC applies; kafbat UI reads topics, lag, messages and schemas from Kafka, with no broker credentials.">
+</p>
+
+1. On the first tool call the server obtains credentials for the configured `KAFBAT_AUTH` strategy and validates
+   them against `GET /api/clusters`. For `cookie` that means reading kafbat's `SESSION` cookie from your browser
+   profile with [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s extraction, decrypting it with your OS keyring where
+   the browser encrypts cookies (Chromium-based browsers do, Firefox does not). For `form` it posts your username
+   and password to kafbat's `/login` and keeps the session cookie it gets back.
+2. It calls kafbat's REST API with those credentials, never following redirects. Reads are `GET`s; the only other
+   requests are the smart-filter registration and, if you enable them, the write tools.
+3. On a 401 or a redirect to the login page it re-authenticates. In `cookie` mode, if the browser's cookie is
+   stale too, it opens kafbat in the configured browser profile, waits for the new cookie (an SSO login usually
+   completes on its own) and retries.
+4. While your MCP client is running, a periodic request keeps the session from idling out.
 
 ## Why kafbat-mcp
 
@@ -87,8 +101,6 @@ orders.v1"*.
 > `~/.claude/settings.json` to skip approval prompts. Narrow that rule first if you enable [write
 > access](#write-access) — Claude Code matches on tool names, not on MCP annotations.
 
-### Other MCP clients
-
 <details>
 <summary><b>Claude Desktop</b> — <code>claude_desktop_config.json</code></summary>
 
@@ -137,8 +149,6 @@ orders.v1"*.
 }
 ```
 </details>
-
----
 
 ## Tools
 
@@ -220,22 +230,6 @@ the `oauth2Login` flow — so with RBAC on, a bearer request carries no user, li
 kafbat never configures `httpBasic()`, so `Authorization: Basic` cannot work with any auth type. There is no
 API-key, service-account or personal-access-token mechanism upstream.
 
-## How it works
-
-1. On the first tool call the server obtains credentials for the configured `KAFBAT_AUTH` strategy and validates
-   them against `GET /api/clusters`. For `cookie` that means reading kafbat's `SESSION` cookie from your browser
-   profile with [yt-dlp](https://github.com/yt-dlp/yt-dlp)'s extraction, decrypting it with your OS keyring where
-   the browser encrypts cookies (Chromium-based browsers do, Firefox does not). For `form` it posts your username
-   and password to kafbat's `/login` and keeps the session cookie it gets back.
-2. It calls kafbat's REST API with those credentials, never following redirects. Reads are `GET`s; the only other
-   requests are the smart-filter registration and, if you enable them, the write tools.
-3. On a 401 or a redirect to the login page it re-authenticates. In `cookie` mode, if the browser's cookie is
-   stale too, it opens kafbat in the configured browser profile, waits for the new cookie (an SSO login usually
-   completes on its own) and retries.
-4. While your MCP client is running, a periodic request keeps the session from idling out.
-
----
-
 ## Configuration
 
 | Variable | Default | Description |
@@ -282,8 +276,6 @@ or credential.
   (Keychain), untested. **Windows:** not supported for Chromium browsers (App-Bound Encryption).
 - **kafbat v1.3.0 through `main`.** CI runs the integration suite against v1.3.0, v1.4.2, v1.5.0 and `main`
   every week, so an upstream change shows up here before it reaches you.
-
----
 
 ## Troubleshooting
 
@@ -374,29 +366,19 @@ Logs go to stderr: in Claude Code use `claude --debug`.
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the pull-request flow and how to add a tool.
+Setup, the offline and integration test suites, and the pull-request flow are in [CONTRIBUTING.md](CONTRIBUTING.md).
+To try your working copy:
 
 ```bash
-git clone https://github.com/DenysFizer/kafbat-mcp && cd kafbat-mcp
-uv sync
-uv run pytest                  # offline tests against a mocked kafbat, ~2s, no Docker
-uv run ruff check
-
-# integration tests: real kafbat UI + Kafka + Schema Registry + Connect in Docker, ~2 min once cached
-KAFBAT_INTEGRATION=1 uv run pytest tests/test_integration.py
-
-# run the whole suite against several kafbat releases (Kafka, Schema Registry and Connect are shared;
-# each extra release boots only its own three kafbat containers)
-KAFBAT_INTEGRATION=1 KAFBAT_IMAGES=ghcr.io/kafbat/kafka-ui:v1.3.0,ghcr.io/kafbat/kafka-ui:main \
-  uv run pytest tests/test_integration.py
-
-# run your working copy in an MCP client
+# in an MCP client
 claude mcp add kafbat -e KAFBAT_URL=https://kafka.example.com -- uv run --directory "$PWD" kafbat-mcp
 
-# or poke at it with the MCP Inspector
+# or with the MCP Inspector
 npx @modelcontextprotocol/inspector -e KAFBAT_URL=https://kafka.example.com uv run --directory "$PWD" kafbat-mcp
 ```
 
-## License
+---
 
-[MIT](LICENSE)
+<p align="center">
+  <sub><a href="LICENSE">MIT license</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="SECURITY.md">Security</a> · <a href="CHANGELOG.md">Changelog</a></sub>
+</p>

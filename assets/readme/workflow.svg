@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">How kafbat-mcp reaches Kafka</title>
+  <desc id="desc">Your MCP client, such as Claude Code, Cursor or VS Code, calls kafbat-mcp, which runs on your machine and is read-only by default. kafbat-mcp signs in to kafbat UI as you, with your browser session for SSO or your kafbat username and password for a login form, so kafbat's RBAC applies. kafbat UI reads Kafka: topics, lag, messages, schemas and connectors, with no broker credentials needed.</desc>
+
+  <rect width="1200" height="360" rx="24" fill="#15130F"/>
+
+  <g id="cards" fill="#1C1915" stroke="#2B2620">
+    <rect x="48" y="40" width="252" height="160" rx="18"/>
+    <rect x="332" y="40" width="252" height="160" rx="18" stroke="#0EA5E9" stroke-opacity="0.6"/>
+    <rect x="616" y="40" width="252" height="160" rx="18"/>
+    <rect x="900" y="40" width="252" height="160" rx="18"/>
+    <rect x="332" y="240" width="820" height="88" rx="18"/>
+  </g>
+
+  <g id="arrows" fill="none" stroke="#4A443A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M306 120 H324 M318 114 L324 120 L318 126"/>
+    <path d="M590 120 H608 M602 114 L608 120 L602 126"/>
+    <path d="M874 120 H892 M886 114 L892 120 L886 126"/>
+    <path d="M458 236 V206 M452 212 L458 206 L464 212"/>
+  </g>
+
+  <g id="labels" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#9A9384">
+    <text x="76" y="84">01 · CLIENT</text>
+    <text x="360" y="84">02 · <tspan fill="#0EA5E9">kafbat-mcp</tspan></text>
+    <text x="644" y="84">03 · KAFBAT UI</text>
+    <text x="928" y="84">04 · KAFKA</text>
+  </g>
+
+  <g id="body" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" fill="#F5F1E8">
+    <text x="76" y="126">Claude Code,</text>
+    <text x="76" y="156">Cursor, VS Code…</text>
+
+    <text x="360" y="126">runs on your</text>
+    <text x="360" y="156">machine</text>
+
+    <text x="644" y="126">signed in as you,</text>
+    <text x="644" y="156">your RBAC applies</text>
+
+    <text x="928" y="126">topics, lag,</text>
+    <text x="928" y="156">messages, schemas</text>
+  </g>
+
+  <g id="footers" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18">
+    <text x="76" y="184" fill="#9A9384">any MCP client</text>
+    <text x="360" y="184" fill="#F59E0B">read-only by default</text>
+    <text x="644" y="184" fill="#9A9384">its REST API</text>
+    <text x="928" y="184" fill="#9A9384">no broker credentials</text>
+  </g>
+
+  <g id="login" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" fill="#F5F1E8">
+    <text x="360" y="276" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#9A9384">YOUR LOGIN</text>
+    <text x="360" y="308">your browser session for SSO, or username + password for a login form</text>
+  </g>
+</svg>
