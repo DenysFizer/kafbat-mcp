@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="240" viewBox="0 0 1200 240" role="img" aria-labelledby="title desc">
+  <title id="title">kafbat-mcp</title>
+  <desc id="desc">The kafbat-mcp logo drawn out as a log: three Kafka partitions as long lines, each read up to a different offset, ending in a prompt; above them the name kafbat-mcp.</desc>
+
+  <text x="150" y="92" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="64" font-weight="700" letter-spacing="-1" fill="#d97706">kafbat-mcp</text>
+
+  <!-- the logo's three partitions, drawn out: the read part, then the unread remainder -->
+  <g stroke-width="8" stroke-linecap="round" fill="none">
+    <path d="M154 146 H790" stroke="#f59e0b"/>
+    <path d="M814 146 H910" stroke="#f59e0b" stroke-opacity="0.26"/>
+    <path d="M154 174 H590" stroke="#fbbf24"/>
+    <path d="M614 174 H910" stroke="#fbbf24" stroke-opacity="0.26"/>
+    <path d="M154 202 H910" stroke="#d97706"/>
+  </g>
+
+  <!-- the logo's prompt: the client reading the log -->
+  <path d="M964 152 L992 174 L964 196" fill="none" stroke="#0ea5e9" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="1006" y="186" width="44" height="12" rx="6" fill="#0ea5e9"/>
+</svg>

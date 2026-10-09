@@ -1,9 +1,7 @@
 <div align="center">
 
 <!-- absolute URL: PyPI renders this README too, and relative paths don't resolve there -->
-<img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/logo.svg" alt="" width="300">
-
-# kafbat-mcp
+<img src="https://raw.githubusercontent.com/DenysFizer/kafbat-mcp/main/assets/readme/header.svg" width="100%" alt="kafbat-mcp: three Kafka partitions read up to different offsets, and a prompt reading them">
 
 **MCP server for kafbat UI — work with Kafka from your AI client,<br>signed in with your existing kafbat login. Read-only by default.**
 
